@@ -75,3 +75,41 @@ def test_complete_maps_timeout_to_categorized_error() -> None:
     with pytest.raises(AIClientError) as exc:
         client.complete("2+2")
     assert exc.value.kind == "timeout"
+
+
+def test_build_structured_chat_payload_includes_context_and_schema() -> None:
+    client = OpenRouterClient(api_key="test-key")
+    payload = client.build_structured_chat_payload(
+        board_payload={"columns": [], "cards": {}},
+        user_message="Move card-1 to done",
+        history=[{"role": "user", "content": "Hi"}],
+    )
+
+    assert payload["messages"][0]["role"] == "system"
+    assert payload["messages"][1]["role"] == "user"
+    assert payload["response_format"]["type"] == "json_schema"
+    assert payload["response_format"]["json_schema"]["strict"] is True
+
+
+def test_complete_structured_chat_parses_json_content() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"assistantMessage":"Done","boardUpdate":null}'
+                        }
+                    }
+                ]
+            },
+        )
+
+    client = OpenRouterClient(api_key="test-key", transport=httpx.MockTransport(handler))
+    parsed = client.complete_structured_chat(
+        board_payload={"columns": [], "cards": {}},
+        user_message="Hello",
+        history=[],
+    )
+    assert parsed == {"assistantMessage": "Done", "boardUpdate": None}

@@ -218,28 +218,37 @@ This document is the execution checklist for building the MVP in phases.
 
 ### Checklist
 
-- [ ] Define strict structured output schema in docs before coding.
-- [ ] Include board JSON, user message, and conversation history in AI request.
-- [ ] Parse model response into:
+- [x] Define strict structured output schema in docs before coding.
+- [x] Include board JSON, user message, and conversation history in AI request.
+- [x] Parse model response into:
   - user-facing response text
   - optional board update payload
-- [ ] Validate structured output before applying board changes.
-- [ ] Persist board update only when output is valid and authorized.
+- [x] Validate structured output before applying board changes.
+- [x] Persist board update only when output is valid and authorized.
 
 ### Tests
 
-- [ ] Unit tests for schema validation and transformation logic.
-- [ ] Integration tests for:
+- [x] Unit tests for schema validation and transformation logic.
+- [x] Integration tests for:
   - response-only outputs
   - response + board update outputs
   - invalid schema outputs
-- [ ] Safety tests to ensure invalid/malformed output does not corrupt board.
-- [ ] Coverage review: structured-output tests cover schema validity and safety behavior.
+- [x] Safety tests to ensure invalid/malformed output does not corrupt board.
+- [x] Coverage review: structured-output tests cover schema validity and safety behavior.
 
 ### Success criteria
 
-- [ ] Backend consistently returns typed chat responses.
-- [ ] Optional AI-driven board updates are applied only when valid.
+- [x] Backend consistently returns typed chat responses.
+- [x] Optional AI-driven board updates are applied only when valid.
+
+### Design decisions recorded
+
+- Added strict schema documentation in `docs/ai-structured-output-schema.md` before implementation.
+- Added typed backend request/response/output models in `backend/app/ai_chat_models.py`.
+- Added secure endpoint `POST /api/ai/chat` that requires authenticated session.
+- AI request context includes current board JSON, user message, and prior conversation turns.
+- Endpoint only persists `boardUpdate` when output validates against strict schema and board consistency checks.
+- Invalid/malformed AI outputs return safe `502 ai_invalid_response` and do not mutate persisted board.
 
 ## Part 10: Sidebar AI chat UX + live board refresh
 

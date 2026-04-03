@@ -5,8 +5,14 @@ from time import perf_counter
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from pydantic import ValidationError
 
 from .ai_client import AIClientError, OPENROUTER_MODEL, openrouter_client_from_env
+from .ai_chat_models import (
+    AIChatRequestModel,
+    AIChatResponseModel,
+    AIChatStructuredOutputModel,
+)
 from .kanban_models import BoardModel
 from . import kanban_repo
 
@@ -219,6 +225,47 @@ def ai_dev_connectivity(request: Request) -> dict[str, object]:
         "model": OPENROUTER_MODEL,
         "latencyMs": elapsed_ms,
     }
+
+
+@app.post("/api/ai/chat", response_model=AIChatResponseModel)
+def ai_chat(request: Request, payload: AIChatRequestModel) -> AIChatResponseModel:
+    username = _authenticated_username(request)
+    board = kanban_repo.get_board_for_user(username=username, db_path=_db_path_override())
+    history_payload = [turn.model_dump() for turn in payload.history]
+
+    try:
+        client = openrouter_client_from_env()
+        structured = client.complete_structured_chat(
+            board_payload=board,
+            user_message=payload.message,
+            history=history_payload,
+        )
+        parsed = AIChatStructuredOutputModel.model_validate(structured)
+    except AIClientError as exc:
+        status_code, detail = exc.to_http()
+        raise HTTPException(status_code=status_code, detail=detail) from exc
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "ai_invalid_response",
+                "message": "AI provider returned an invalid response.",
+            },
+        ) from exc
+
+    board_update = parsed.boardUpdate
+    if board_update is not None:
+        saved_board = kanban_repo.save_board_for_user(
+            username=username,
+            board_payload=board_update.model_dump(),
+            db_path=_db_path_override(),
+        )
+        board_update = BoardModel.model_validate(saved_board)
+
+    return AIChatResponseModel(
+        assistantMessage=parsed.assistantMessage,
+        boardUpdate=board_update,
+    )
 
 
 @app.get("/{full_path:path}")

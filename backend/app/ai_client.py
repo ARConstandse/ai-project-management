@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -9,6 +10,55 @@ import httpx
 OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_MODEL = "qwen/qwen3.6-plus-preview:free"
 DEFAULT_TIMEOUT_SECONDS = 15.0
+STRUCTURED_OUTPUT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "assistantMessage": {"type": "string", "minLength": 1},
+        "boardUpdate": {
+            "anyOf": [
+                {"type": "null"},
+                {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "columns": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "properties": {
+                                    "id": {"type": "string", "minLength": 1},
+                                    "title": {"type": "string"},
+                                    "cardIds": {
+                                        "type": "array",
+                                        "items": {"type": "string", "minLength": 1},
+                                    },
+                                },
+                                "required": ["id", "title", "cardIds"],
+                            },
+                        },
+                        "cards": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "properties": {
+                                    "id": {"type": "string", "minLength": 1},
+                                    "title": {"type": "string"},
+                                    "details": {"type": "string"},
+                                },
+                                "required": ["id", "title", "details"],
+                            },
+                        },
+                    },
+                    "required": ["columns", "cards"],
+                },
+            ]
+        },
+    },
+    "required": ["assistantMessage", "boardUpdate"],
+}
 
 
 @dataclass
@@ -77,6 +127,39 @@ class OpenRouterClient:
             "messages": [{"role": "user", "content": prompt}],
         }
 
+    def build_structured_chat_payload(
+        self,
+        board_payload: dict[str, Any],
+        user_message: str,
+        history: list[dict[str, str]],
+    ) -> dict[str, Any]:
+        context_blob = {
+            "conversationHistory": history,
+            "userMessage": user_message,
+            "board": board_payload,
+        }
+        return {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a project management assistant. "
+                        "Always return ONLY valid JSON matching the provided schema."
+                    ),
+                },
+                {"role": "user", "content": json.dumps(context_blob, separators=(",", ":"))},
+            ],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "pm_ai_chat_output",
+                    "strict": True,
+                    "schema": STRUCTURED_OUTPUT_SCHEMA,
+                },
+            },
+        }
+
     def parse_response_text(self, response_json: dict[str, Any]) -> str:
         choices = response_json.get("choices")
         if not isinstance(choices, list) or not choices:
@@ -98,6 +181,35 @@ class OpenRouterClient:
 
     def complete(self, prompt: str) -> str:
         payload = self.build_payload(prompt)
+        data = self._post_payload(payload)
+        return self.parse_response_text(data)
+
+    def complete_structured_chat(
+        self,
+        board_payload: dict[str, Any],
+        user_message: str,
+        history: list[dict[str, str]],
+    ) -> dict[str, Any]:
+        payload = self.build_structured_chat_payload(
+            board_payload=board_payload,
+            user_message=user_message,
+            history=history,
+        )
+        data = self._post_payload(payload)
+        content = self.parse_response_text(data)
+        try:
+            parsed = json.loads(content)
+        except ValueError as exc:
+            raise AIClientError(
+                "invalid_response", "Structured output was not valid JSON."
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise AIClientError(
+                "invalid_response", "Structured output root was not an object."
+            )
+        return parsed
+
+    def _post_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -133,8 +245,7 @@ class OpenRouterClient:
 
         if not isinstance(data, dict):
             raise AIClientError("invalid_response", "Top-level JSON was not an object.")
-
-        return self.parse_response_text(data)
+        return data
 
     def _extract_upstream_message(self, response: httpx.Response) -> str:
         default = f"Upstream returned {response.status_code}."
