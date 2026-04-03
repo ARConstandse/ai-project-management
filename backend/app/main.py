@@ -7,7 +7,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import ValidationError
 
-from .ai_client import AIClientError, OPENROUTER_MODEL, openrouter_client_from_env
+from .ai_client import AIClientError, openrouter_client_from_env
 from .ai_chat_models import (
     AIChatRequestModel,
     AIChatResponseModel,
@@ -222,7 +222,7 @@ def ai_dev_connectivity(request: Request) -> dict[str, object]:
     return {
         "prompt": "2+2",
         "response": response_text,
-        "model": OPENROUTER_MODEL,
+        "model": client.model,
         "latencyMs": elapsed_ms,
     }
 

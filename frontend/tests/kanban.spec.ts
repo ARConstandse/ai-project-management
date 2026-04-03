@@ -84,6 +84,35 @@ const setupMockBoardApi = async (page: Page) => {
     }
     await route.fulfill({ status: 405, json: { detail: "Method not allowed" } });
   });
+  await page.route("**/api/ai/chat", async (route) => {
+    const body = route.request().postDataJSON() as {
+      message?: string;
+    };
+    if ((body.message ?? "").toLowerCase().includes("rename")) {
+      board = {
+        ...board,
+        cards: {
+          ...board.cards,
+          "card-1": {
+            ...board.cards["card-1"],
+            title: "AI renamed card",
+          },
+        },
+      };
+      await route.fulfill({
+        status: 200,
+        json: {
+          assistantMessage: "Updated card-1 title.",
+          boardUpdate: board,
+        },
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      json: { assistantMessage: "No changes required.", boardUpdate: null },
+    });
+  });
 };
 
 test("loads the kanban board", async ({ page }) => {
@@ -145,4 +174,16 @@ test("persists board changes after page refresh", async ({ page }) => {
   await page.reload();
   const refreshedFirstColumn = page.locator('[data-testid^="column-"]').first();
   await expect(refreshedFirstColumn.getByText(cardTitle)).toBeVisible();
+});
+
+test("chat prompt returns reply and applies board update", async ({ page }) => {
+  await setupMockBoardApi(page);
+  await page.goto("/");
+
+  await page.getByLabel("Message").fill("Rename card 1 title");
+  await page.getByRole("button", { name: /send to ai/i }).click();
+
+  await expect(page.getByText("Updated card-1 title.")).toBeVisible();
+  await expect(page.getByText("AI renamed card")).toBeVisible();
+  await expect(page.getByText("AI board update applied")).toBeVisible();
 });

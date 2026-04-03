@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
 OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "qwen/qwen3.6-plus-preview:free"
+
+OPENROUTER_MODEL = "openai/gpt-oss-120b"
 DEFAULT_TIMEOUT_SECONDS = 15.0
 STRUCTURED_OUTPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -176,6 +178,22 @@ class OpenRouterClient:
         content = message.get("content")
         if isinstance(content, str) and content.strip():
             return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, str) and item.strip():
+                    parts.append(item.strip())
+                    continue
+                if isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str) and text.strip():
+                        parts.append(text.strip())
+            if parts:
+                return "\n".join(parts)
+        if isinstance(content, dict):
+            text = content.get("text")
+            if isinstance(text, str) and text.strip():
+                return text
 
         raise AIClientError("invalid_response", "Missing assistant content.")
 
@@ -197,17 +215,44 @@ class OpenRouterClient:
         )
         data = self._post_payload(payload)
         content = self.parse_response_text(data)
-        try:
-            parsed = json.loads(content)
-        except ValueError as exc:
-            raise AIClientError(
-                "invalid_response", "Structured output was not valid JSON."
-            ) from exc
+        parsed = self._parse_json_object_from_text(content)
         if not isinstance(parsed, dict):
             raise AIClientError(
                 "invalid_response", "Structured output root was not an object."
             )
         return parsed
+
+    def _parse_json_object_from_text(self, content: str) -> dict[str, Any]:
+        try:
+            parsed = json.loads(content)
+            if isinstance(parsed, dict):
+                return parsed
+        except ValueError:
+            pass
+
+        # Some providers prepend prose or wrap JSON in ```json fences.
+        code_fence_match = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", content)
+        if code_fence_match:
+            candidate = code_fence_match.group(1)
+            try:
+                parsed = json.loads(candidate)
+                if isinstance(parsed, dict):
+                    return parsed
+            except ValueError:
+                pass
+
+        first = content.find("{")
+        last = content.rfind("}")
+        if first != -1 and last != -1 and first < last:
+            candidate = content[first : last + 1]
+            try:
+                parsed = json.loads(candidate)
+                if isinstance(parsed, dict):
+                    return parsed
+            except ValueError:
+                pass
+
+        raise AIClientError("invalid_response", "Structured output was not valid JSON.")
 
     def _post_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         headers = {
@@ -269,4 +314,8 @@ def openrouter_client_from_env() -> OpenRouterClient:
     api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
     if not api_key:
         raise AIClientError("configuration", "OPENROUTER_API_KEY is not set.")
-    return OpenRouterClient(api_key=api_key)
+    model = os.getenv("OPENROUTER_MODEL", "").strip() or OPENROUTER_MODEL
+    # Convenience for common shorthand like `qwen3.6-plus:free`.
+    if "/" not in model and model.lower().startswith("qwen"):
+        model = f"qwen/{model}"
+    return OpenRouterClient(api_key=api_key, model=model)

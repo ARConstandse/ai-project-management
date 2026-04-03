@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.ai_client import OpenRouterClient
+from app.ai_client import OPENROUTER_MODEL
 from app.ai_client import AIClientError
 import app.main as main
 
@@ -58,7 +59,7 @@ def test_ai_connectivity_returns_response_for_authenticated_user(
     payload = response.json()
     assert payload["prompt"] == "2+2"
     assert payload["response"] == "4"
-    assert payload["model"] == "qwen/qwen3.6-plus-preview:free"
+    assert payload["model"] == OPENROUTER_MODEL
     assert isinstance(payload["latencyMs"], int)
 
 

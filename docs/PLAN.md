@@ -254,23 +254,33 @@ This document is the execution checklist for building the MVP in phases.
 
 ### Checklist
 
-- [ ] Build sidebar chat UI integrated into Kanban page.
-- [ ] Send user prompts and conversation history to backend chat endpoint.
-- [ ] Render assistant responses in chat thread.
-- [ ] When AI output includes a board update, refresh board UI automatically.
-- [ ] Keep UX clean and aligned with project color/theme system.
+- [x] Build sidebar chat UI integrated into Kanban page.
+- [x] Send user prompts and conversation history to backend chat endpoint.
+- [x] Render assistant responses in chat thread.
+- [x] When AI output includes a board update, refresh board UI automatically.
+- [x] Keep UX clean and aligned with project color/theme system.
 
 ### Tests
 
-- [ ] Frontend unit tests for chat component rendering and state transitions.
-- [ ] Integration tests for chat request/response and board refresh triggers.
-- [ ] End-to-end tests for full flow: prompt -> assistant reply -> optional board change.
-- [ ] Coverage review: chat UI tests cover key conversation and board-update flows.
+- [x] Frontend unit tests for chat component rendering and state transitions.
+- [x] Integration tests for chat request/response and board refresh triggers.
+- [x] End-to-end tests for full flow: prompt -> assistant reply -> optional board change.
+- [x] Coverage review: chat UI tests cover key conversation and board-update flows.
 
 ### Success criteria
 
-- [ ] Sidebar chat works reliably for conversation and board updates.
-- [ ] Board updates from AI are reflected immediately in UI.
+- [x] Sidebar chat works reliably for conversation and board updates.
+- [x] Board updates from AI are reflected immediately in UI.
+
+### Design decisions recorded
+
+- Added a right-side `Board Chat` panel directly on the Kanban page to keep chat and board actions in one view.
+- Added frontend API client support for `POST /api/ai/chat` with typed request/response payloads.
+- Chat requests send prior conversation turns as history and send the current user message separately.
+- On AI response:
+  - append assistant text to chat thread,
+  - if `boardUpdate` is present, replace in-memory board state immediately without extra reload.
+- Chat error states are shown inline with minimal status text to preserve existing clean MVP UX.
 
 ## Execution policy
 

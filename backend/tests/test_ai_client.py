@@ -1,14 +1,20 @@
 import httpx
 import pytest
 
-from app.ai_client import AIClientError, OPENROUTER_CHAT_COMPLETIONS_URL, OpenRouterClient
+from app.ai_client import (
+    AIClientError,
+    OPENROUTER_CHAT_COMPLETIONS_URL,
+    OPENROUTER_MODEL,
+    OpenRouterClient,
+    openrouter_client_from_env,
+)
 
 
 def test_build_payload_uses_expected_model_and_message() -> None:
     client = OpenRouterClient(api_key="test-key")
     payload = client.build_payload("2+2")
     assert payload == {
-        "model": "qwen/qwen3.6-plus-preview:free",
+        "model": OPENROUTER_MODEL,
         "messages": [{"role": "user", "content": "2+2"}],
     }
 
@@ -113,3 +119,64 @@ def test_complete_structured_chat_parses_json_content() -> None:
         history=[],
     )
     assert parsed == {"assistantMessage": "Done", "boardUpdate": None}
+
+
+def test_complete_structured_chat_parses_fenced_json_content() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": "Here is the result:\n```json\n{\"assistantMessage\":\"Done\",\"boardUpdate\":null}\n```"
+                        }
+                    }
+                ]
+            },
+        )
+
+    client = OpenRouterClient(api_key="test-key", transport=httpx.MockTransport(handler))
+    parsed = client.complete_structured_chat(
+        board_payload={"columns": [], "cards": {}},
+        user_message="Hello",
+        history=[],
+    )
+    assert parsed == {"assistantMessage": "Done", "boardUpdate": None}
+
+
+def test_openrouter_client_from_env_uses_model_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "qwen/qwen3.6-plus:free")
+    client = openrouter_client_from_env()
+    assert client.model == "qwen/qwen3.6-plus:free"
+
+
+def test_openrouter_client_from_env_normalizes_qwen_shorthand(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "qwen3.6-plus:free")
+    client = openrouter_client_from_env()
+    assert client.model == "qwen/qwen3.6-plus:free"
+
+
+def test_parse_response_text_accepts_content_parts_array() -> None:
+    client = OpenRouterClient(api_key="test-key")
+    parsed = client.parse_response_text(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "content": [
+                            {"type": "text", "text": "First line"},
+                            {"type": "text", "text": "Second line"},
+                        ]
+                    }
+                }
+            ]
+        }
+    )
+    assert parsed == "First line\nSecond line"
