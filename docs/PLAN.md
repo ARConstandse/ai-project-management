@@ -179,24 +179,40 @@ This document is the execution checklist for building the MVP in phases.
 
 ## Part 8: AI connectivity through OpenRouter
 
+### User-approved implementation notes
+
+- Endpoint will be auth-protected (requires valid session cookie).
+- Endpoint is temporary and dev-facing for connectivity verification.
+- Connectivity check must call real OpenRouter (no mocking for manual smoke test).
+- Apply explicit upstream timeout and categorized error mapping.
+- Manual real-key smoke test is approved during Part 8 execution.
+
 ### Checklist
 
-- [ ] Add backend AI client using `OPENROUTER_API_KEY`.
-- [ ] Call OpenRouter model `qwen/qwen3.6-plus-preview:free`.
-- [ ] Implement a simple connectivity endpoint/task for prompt `2+2`.
-- [ ] Add timeout and clear error mapping for failed upstream calls.
+- [x] Add backend AI client using `OPENROUTER_API_KEY`.
+- [x] Call OpenRouter model `qwen/qwen3.6-plus-preview:free`.
+- [x] Implement a simple connectivity endpoint/task for prompt `2+2`.
+- [x] Add timeout and clear error mapping for failed upstream calls.
 
 ### Tests
 
-- [ ] Unit tests for AI client request building and response parsing.
-- [ ] Integration test with mocked OpenRouter response.
+- [x] Unit tests for AI client request building and response parsing.
+- [x] Integration test with mocked OpenRouter response.
 - [ ] Manual smoke test using real key: `2+2` returns valid response.
-- [ ] Coverage review: AI client tests cover request, response, and failure handling.
+- [x] Coverage review: AI client tests cover request, response, and failure handling.
 
 ### Success criteria
 
 - [ ] Backend can successfully call OpenRouter and return response.
-- [ ] Failures are observable and user-safe.
+- [x] Failures are observable and user-safe.
+
+### Design decisions recorded
+
+- Added secure temporary dev endpoint `POST /api/ai/dev-connectivity` that requires login session.
+- Endpoint triggers a real OpenRouter call with fixed prompt `2+2` and returns prompt, response, model, and latency.
+- OpenRouter client timeout is explicitly set to 15 seconds.
+- Upstream failures are categorized into configuration, timeout, auth, rate-limit, model-unavailable, network, invalid-response, and generic upstream errors.
+- Real-key smoke test currently fails due provider-side model availability for `qwen/qwen3.6-plus-preview:free` (OpenRouter returns 404 "No endpoints found").
 
 ## Part 9: Structured Outputs for chat + optional board update
 

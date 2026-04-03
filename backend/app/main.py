@@ -1,10 +1,12 @@
 import secrets
 from pathlib import Path
 import os
+from time import perf_counter
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
+from .ai_client import AIClientError, OPENROUTER_MODEL, openrouter_client_from_env
 from .kanban_models import BoardModel
 from . import kanban_repo
 
@@ -196,6 +198,27 @@ def put_board(request: Request, board: BoardModel) -> dict[str, object]:
         username=username, board_payload=board.model_dump(), db_path=_db_path_override()
     )
     return saved
+
+
+@app.post("/api/ai/dev-connectivity")
+def ai_dev_connectivity(request: Request) -> dict[str, object]:
+    _authenticated_username(request)
+
+    started = perf_counter()
+    try:
+        client = openrouter_client_from_env()
+        response_text = client.complete("2+2")
+    except AIClientError as exc:
+        status_code, detail = exc.to_http()
+        raise HTTPException(status_code=status_code, detail=detail) from exc
+
+    elapsed_ms = int((perf_counter() - started) * 1000)
+    return {
+        "prompt": "2+2",
+        "response": response_text,
+        "model": OPENROUTER_MODEL,
+        "latencyMs": elapsed_ms,
+    }
 
 
 @app.get("/{full_path:path}")
