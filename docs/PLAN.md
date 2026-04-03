@@ -113,6 +113,13 @@ This document is the execution checklist for building the MVP in phases.
 - [x] Approved schema documented clearly.
 - [x] DB bootstraps cleanly on first run.
 
+### Design decisions recorded
+
+- Persist board state in `boards.board_json` (single JSON document) to keep MVP schema simple.
+- Keep one-board-per-user invariant via `UNIQUE(user_id)` in `boards`.
+- Use app-level DB bootstrap (`CREATE TABLE IF NOT EXISTS`) and no migration framework during MVP.
+- Keep detailed schema/trade-offs in `docs/database-schema.md`.
+
 ## Part 6: Backend Kanban APIs
 
 ### Checklist
@@ -130,6 +137,16 @@ This document is the execution checklist for building the MVP in phases.
 ### Success criteria
 - [x] Board API supports reliable persistence for signed-in user.
 - [x] API behaves correctly for success and failure paths.
+
+### Design decisions recorded
+
+- Expose board persistence via `GET /api/board` and `PUT /api/board` for authenticated users.
+- Use a repository layer (`kanban_repo`) to isolate SQLite read/write from route handlers.
+- Validate board payload with strict model checks:
+  - `cards` key must match `card.id`.
+  - all `column.cardIds` must exist in `cards`.
+- Return `401` for unauthorized board access and `422` for invalid board payloads.
+- Support deterministic tests with `PM_DB_PATH` override for temporary DB files.
 
 ## Part 7: Frontend + Backend persistence wiring
 
@@ -151,6 +168,14 @@ This document is the execution checklist for building the MVP in phases.
 
 - [x] Kanban changes persist across reloads for authenticated session.
 - [x] Existing Kanban interactions remain smooth and correct.
+
+### Design decisions recorded
+
+- Keep local optimistic board updates, then persist asynchronously through `PUT /api/board`.
+- Load board from backend on mount (`GET /api/board`), with local seed as fallback if load fails.
+- Debounce save calls (~250ms) to reduce redundant requests during rapid edits.
+- Show minimal persistence state in UI: loading, saving, saved, and error.
+- Keep backend default board seed aligned with the original frontend board so first run UX is unchanged.
 
 ## Part 8: AI connectivity through OpenRouter
 
