@@ -99,43 +99,37 @@ This document is the execution checklist for building the MVP in phases.
 ## Part 5: Database model and sign-off
 
 ### Checklist
-
-- [ ] Propose SQLite schema supporting multiple users and one board per user (MVP behavior).
-- [ ] Store board payload as JSON in SQLite.
-- [ ] Document schema, migration/init behavior, and trade-offs in `docs/`.
-- [ ] Get user sign-off on schema before API implementation.
+- [x] Propose SQLite schema supporting multiple users and one board per user (MVP behavior).
+- [x] Store board payload as JSON in SQLite.
+- [x] Document schema, migration/init behavior, and trade-offs in `docs/`.
+- [x] Get user sign-off on schema before API implementation.
 
 ### Tests
-
-- [ ] Unit tests for data model serialization/deserialization and defaults.
-- [ ] Integration test: DB auto-creates when missing.
-- [ ] Coverage review: DB tests focus on high-value behavior and edge cases.
+- [x] Unit tests for data model serialization/deserialization and defaults.
+- [x] Integration test: DB auto-creates when missing.
+- [x] Coverage review: DB tests focus on high-value behavior and edge cases.
 
 ### Success criteria
-
-- [ ] Approved schema documented clearly.
-- [ ] DB bootstraps cleanly on first run.
+- [x] Approved schema documented clearly.
+- [x] DB bootstraps cleanly on first run.
 
 ## Part 6: Backend Kanban APIs
 
 ### Checklist
-
-- [ ] Implement API routes to fetch and update board for authenticated user.
-- [ ] Add service/repository layer for board read/write in SQLite JSON.
-- [ ] Validate payload shape and return clear API errors.
-- [ ] Ensure DB file is created if absent.
+- [x] Implement API routes to fetch and update board for authenticated user.
+- [x] Add service/repository layer for board read/write in SQLite JSON.
+- [x] Validate payload shape and return clear API errors.
+- [x] Ensure DB file is created if absent.
 
 ### Tests
-
-- [ ] Backend unit tests for handlers, service logic, and validation.
-- [ ] Integration tests for authenticated board read/write lifecycle.
-- [ ] Negative-path tests for invalid payload and unauthorized requests.
-- [ ] Coverage review: backend API tests cover critical success and failure paths.
+- [x] Backend unit tests for handlers, service logic, and validation.
+- [x] Integration tests for authenticated board read/write lifecycle.
+- [x] Negative-path tests for invalid payload and unauthorized requests.
+- [x] Coverage review: backend API tests cover critical success and failure paths.
 
 ### Success criteria
-
-- [ ] Board API supports reliable persistence for signed-in user.
-- [ ] API behaves correctly for success and failure paths.
+- [x] Board API supports reliable persistence for signed-in user.
+- [x] API behaves correctly for success and failure paths.
 
 ## Part 7: Frontend + Backend persistence wiring
 
