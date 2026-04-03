@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PM MVP - Hello World</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 2rem;
+        font-family: "Segoe UI", sans-serif;
+        background: #f8f9fc;
+        color: #032147;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        background: #ffffff;
+        border: 1px solid rgba(3, 33, 71, 0.08);
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 8px 24px rgba(3, 33, 71, 0.08);
+      }
+      h1 {
+        margin-top: 0;
+      }
+      .label {
+        color: #888888;
+      }
+      code {
+        display: block;
+        margin-top: 0.75rem;
+        background: #f5f7fb;
+        border: 1px solid rgba(3, 33, 71, 0.08);
+        border-radius: 8px;
+        padding: 0.75rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Hello from PM backend scaffold</h1>
+      <p class="label">Part 2 scaffold verification page</p>
+      <p>Calling <code>/api/hello</code>...</p>
+      <code id="result">Loading...</code>
+    </main>
+    <script>
+      async function loadHello() {
+        const result = document.getElementById("result");
+        try {
+          const response = await fetch("/api/hello");
+          const data = await response.json();
+          result.textContent = JSON.stringify(data);
+        } catch (error) {
+          result.textContent = `Error: ${error}`;
+        }
+      }
+      loadHello();
+    </script>
+  </body>
+  </html>

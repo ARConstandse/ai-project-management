@@ -1,0 +1,8 @@
+services:
+  pm-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pm-app
+    ports:
+      - "8000:8000"
