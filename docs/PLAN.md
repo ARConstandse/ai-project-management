@@ -135,22 +135,22 @@ This document is the execution checklist for building the MVP in phases.
 
 ### Checklist
 
-- [ ] Replace in-memory frontend board state with backend API fetch/save.
-- [ ] Keep drag/drop, add, edit, delete, rename flows working with persistence.
-- [ ] Add loading and error states that remain minimal and clear.
-- [ ] Ensure data refresh reflects latest saved board.
+- [x] Replace in-memory frontend board state with backend API fetch/save.
+- [x] Keep drag/drop, add, edit, delete, rename flows working with persistence.
+- [x] Add loading and error states that remain minimal and clear.
+- [x] Ensure data refresh reflects latest saved board.
 
 ### Tests
 
-- [ ] Frontend unit tests for API client/state transitions.
-- [ ] Integration tests with mocked backend responses.
-- [ ] End-to-end tests verifying persisted changes survive page refresh.
-- [ ] Coverage review: frontend persistence tests cover critical user flows.
+- [x] Frontend unit tests for API client/state transitions.
+- [x] Integration tests with mocked backend responses.
+- [x] End-to-end tests verifying persisted changes survive page refresh.
+- [x] Coverage review: frontend persistence tests cover critical user flows.
 
 ### Success criteria
 
-- [ ] Kanban changes persist across reloads for authenticated session.
-- [ ] Existing Kanban interactions remain smooth and correct.
+- [x] Kanban changes persist across reloads for authenticated session.
+- [x] Existing Kanban interactions remain smooth and correct.
 
 ## Part 8: AI connectivity through OpenRouter
 

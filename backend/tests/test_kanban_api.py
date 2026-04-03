@@ -35,15 +35,15 @@ def test_repo_get_board_bootstraps_default(tmp_path: Path) -> None:
     board = kanban_repo.get_board_for_user("user", db_path=db_path)
 
     assert db_path.exists()
-    assert board["columns"][0]["id"] == "col-todo"
-    assert board["cards"] == {}
+    assert board["columns"][0]["id"] == "col-backlog"
+    assert "card-1" in board["cards"]
 
 
 def test_repo_save_board_persists_and_returns_payload(tmp_path: Path) -> None:
     db_path = tmp_path / "db.sqlite3"
 
     original = kanban_repo.get_board_for_user("user", db_path=db_path)
-    assert original["cards"] == {}
+    assert "card-1" in original["cards"]
 
     new_board: BoardModel = BoardModel(
         columns=[
