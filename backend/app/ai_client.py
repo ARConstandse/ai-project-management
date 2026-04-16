@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -275,13 +278,16 @@ class OpenRouterClient:
 
         if response.status_code >= 400:
             upstream_message = self._extract_upstream_message(response)
+            logger.warning(
+                "Upstream AI error %d: %s", response.status_code, upstream_message
+            )
             if response.status_code in (401, 403):
                 raise AIClientError("auth", "Upstream auth failed.")
             if response.status_code == 429:
                 raise AIClientError("rate_limit", "Upstream rate limit.")
             if response.status_code == 404:
-                raise AIClientError("model_unavailable", upstream_message)
-            raise AIClientError("upstream", upstream_message)
+                raise AIClientError("model_unavailable", "Configured AI model is unavailable.")
+            raise AIClientError("upstream", "AI provider returned an error.")
 
         try:
             data = response.json()

@@ -9,12 +9,12 @@ from .kanban_models import BoardModel
 
 class ConversationTurnModel(BaseModel):
     role: Literal["user", "assistant"]
-    content: str = Field(min_length=1)
+    content: str = Field(min_length=1, max_length=4000)
 
 
 class AIChatRequestModel(BaseModel):
-    message: str = Field(min_length=1)
-    history: list[ConversationTurnModel] = Field(default_factory=list)
+    message: str = Field(min_length=1, max_length=4000)
+    history: list[ConversationTurnModel] = Field(default_factory=list, max_length=50)
 
 
 class AIChatStructuredOutputModel(BaseModel):

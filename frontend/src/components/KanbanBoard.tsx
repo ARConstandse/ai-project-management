@@ -7,13 +7,16 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  closestCorners,
+  pointerWithin,
+  closestCenter,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
-import { createId, initialData, moveCard, type BoardData } from "@/lib/kanban";
+import { createId, findColumnId, moveCard, type BoardData } from "@/lib/kanban";
 import {
   fetchBoard,
   saveBoard,
@@ -28,13 +31,14 @@ type ChatMessage = {
 };
 
 export const KanbanBoard = () => {
-  const [board, setBoard] = useState<BoardData>(() => initialData);
+  const [board, setBoard] = useState<BoardData>(() => ({ columns: [], cards: {} }));
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
+  const pendingSaveRef = useRef<BoardData | null>(null);
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -45,6 +49,14 @@ export const KanbanBoard = () => {
       activationConstraint: { distance: 6 },
     })
   );
+
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) {
+      return pointerCollisions;
+    }
+    return closestCenter(args);
+  }, []);
 
   const cardsById = useMemo(() => board.cards, [board.cards]);
 
@@ -61,7 +73,7 @@ export const KanbanBoard = () => {
         }
       } catch {
         if (!cancelled) {
-          setSaveError("Unable to load the latest board. Showing local fallback data.");
+          setSaveError("Unable to load board from server. Please refresh the page.");
         }
       } finally {
         if (!cancelled) {
@@ -79,25 +91,28 @@ export const KanbanBoard = () => {
     };
   }, []);
 
+  const executeSave = useCallback(async (boardToSave: BoardData) => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await saveBoard(boardToSave);
+      pendingSaveRef.current = null;
+      setSaveMessage("Saved");
+    } catch {
+      setSaveError("Could not save board changes.");
+    } finally {
+      setIsSaving(false);
+    }
+  }, []);
+
   const queueSave = useCallback((nextBoard: BoardData) => {
     setSaveMessage(null);
+    pendingSaveRef.current = nextBoard;
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
     }
-
-    saveTimeoutRef.current = window.setTimeout(async () => {
-      setIsSaving(true);
-      setSaveError(null);
-      try {
-        await saveBoard(nextBoard);
-        setSaveMessage("Saved");
-      } catch {
-        setSaveError("Could not save board changes. Please try again.");
-      } finally {
-        setIsSaving(false);
-      }
-    }, 250);
-  }, []);
+    saveTimeoutRef.current = window.setTimeout(() => void executeSave(nextBoard), 250);
+  }, [executeSave]);
 
   const applyBoardUpdate = useCallback(
     (updater: (prev: BoardData) => BoardData) => {
@@ -112,6 +127,25 @@ export const KanbanBoard = () => {
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveCardId(event.active.id as string);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    setBoard((prev) => {
+      const activeColumnId = findColumnId(prev.columns, active.id as string);
+      const overColumnId = findColumnId(prev.columns, over.id as string);
+
+      if (!activeColumnId || !overColumnId || activeColumnId === overColumnId) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        columns: moveCard(prev.columns, active.id as string, over.id as string),
+      };
+    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -269,7 +303,20 @@ export const KanbanBoard = () => {
             {!isSaving && saveMessage ? (
               <span className="text-[var(--gray-text)]">{saveMessage}</span>
             ) : null}
-            {saveError ? <span className="text-[#b42318]">{saveError}</span> : null}
+            {saveError ? (
+              <span className="flex items-center gap-2 text-[#b42318]">
+                {saveError}
+                {pendingSaveRef.current ? (
+                  <button
+                    type="button"
+                    onClick={() => pendingSaveRef.current && void executeSave(pendingSaveRef.current)}
+                    className="underline hover:no-underline"
+                  >
+                    Retry
+                  </button>
+                ) : null}
+              </span>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-4">
             {board.columns.map((column) => (
@@ -287,8 +334,9 @@ export const KanbanBoard = () => {
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCorners}
+            collisionDetection={collisionDetection}
             onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
             <section className="grid gap-6 lg:grid-cols-5">
@@ -376,7 +424,11 @@ export const KanbanBoard = () => {
               ) : null}
               <button
                 type="button"
-                onClick={() => void handleSendChat()}
+                onClick={() => {
+                  handleSendChat().catch((err: unknown) => {
+                    setChatError(err instanceof Error ? err.message : "Unexpected error.");
+                  });
+                }}
                 disabled={!canSendChat}
                 className="mt-3 w-full rounded-full bg-[var(--secondary-purple)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
               >

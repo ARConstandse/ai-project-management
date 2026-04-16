@@ -1,9 +1,11 @@
+import logging
+import os
 import secrets
 from pathlib import Path
-import os
-from time import perf_counter
+from time import perf_counter, time
 
 from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import ValidationError
 
@@ -16,7 +18,18 @@ from .ai_chat_models import (
 from .kanban_models import BoardModel
 from . import kanban_repo
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="pm-backend", version="0.1.0")
+
+_frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[_frontend_url],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT"],
+    allow_headers=["Content-Type"],
+)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 STATIC_INDEX = STATIC_DIR / "index.html"
@@ -99,9 +112,13 @@ LOGIN_TEMPLATE = """<!doctype html>
 </html>
 """
 SESSION_COOKIE_NAME = "pm_session"
-VALID_USERNAME = "user"
-VALID_PASSWORD = "password"
-active_sessions: set[str] = set()
+VALID_USERNAME = os.getenv("DEMO_USERNAME", "user")
+VALID_PASSWORD = os.getenv("DEMO_PASSWORD", "password")
+# Sessions stored as token -> expiry_timestamp. TTL of 8 hours.
+SESSION_TTL_SECONDS = 8 * 60 * 60
+active_sessions: dict[str, float] = {}
+
+_is_production = os.getenv("ENVIRONMENT", "development").lower() == "production"
 
 
 def _frontend_index() -> Path:
@@ -113,7 +130,15 @@ def _frontend_index() -> Path:
 
 def _is_authenticated(request: Request) -> bool:
     session_token = request.cookies.get(SESSION_COOKIE_NAME)
-    return bool(session_token and session_token in active_sessions)
+    if not session_token:
+        return False
+    expiry = active_sessions.get(session_token)
+    if expiry is None:
+        return False
+    if time() > expiry:
+        active_sessions.pop(session_token, None)
+        return False
+    return True
 
 
 def _db_path_override() -> Path | None:
@@ -154,7 +179,7 @@ def login(username: str = Form(...), password: str = Form(...)) -> RedirectRespo
         return RedirectResponse(url="/login?error=1", status_code=303)
 
     session_token = secrets.token_urlsafe(32)
-    active_sessions.add(session_token)
+    active_sessions[session_token] = time() + SESSION_TTL_SECONDS
 
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(
@@ -162,7 +187,7 @@ def login(username: str = Form(...), password: str = Form(...)) -> RedirectRespo
         session_token,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=_is_production,
         path="/",
     )
     return response
@@ -172,7 +197,7 @@ def login(username: str = Form(...), password: str = Form(...)) -> RedirectRespo
 def logout(request: Request) -> RedirectResponse:
     session_token = request.cookies.get(SESSION_COOKIE_NAME)
     if session_token:
-        active_sessions.discard(session_token)
+        active_sessions.pop(session_token, None)
 
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")

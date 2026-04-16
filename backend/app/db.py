@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,7 +9,8 @@ from typing import Any, Dict
 
 DB_FILENAME = "db.sqlite3"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DB_PATH = PROJECT_ROOT / DB_FILENAME
+_env_db_path = os.getenv("PM_DB_PATH")
+DEFAULT_DB_PATH = Path(_env_db_path) if _env_db_path else PROJECT_ROOT / DB_FILENAME
 
 
 def _utc_now_iso() -> str:
@@ -60,6 +62,10 @@ def initialize_database(db_path: Path | None = None) -> Path:
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             """
+        )
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);"
         )
 
     return path
