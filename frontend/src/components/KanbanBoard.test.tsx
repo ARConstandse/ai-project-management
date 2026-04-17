@@ -1,7 +1,36 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import React from "react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { DragEndEvent, DragOverEvent } from "@dnd-kit/core";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { initialData } from "@/lib/kanban";
+
+const dndHandlers: {
+  onDragOver?: (event: DragOverEvent) => void;
+  onDragEnd?: (event: DragEndEvent) => void;
+} = {};
+
+vi.mock("@dnd-kit/core", async () => {
+  const actual = await vi.importActual<typeof import("@dnd-kit/core")>("@dnd-kit/core");
+  const RealDndContext = actual.DndContext;
+  return {
+    ...actual,
+    DndContext: (props: any) => {
+      dndHandlers.onDragOver = props.onDragOver;
+      dndHandlers.onDragEnd = props.onDragEnd;
+      return React.createElement(RealDndContext, props);
+    },
+  };
+});
+
+const makeDragEvent = (activeId: string, overId: string) =>
+  ({
+    active: { id: activeId },
+    over: { id: overId },
+    collisions: [],
+    delta: { x: 0, y: 0 },
+    activatorEvent: new Event("pointer"),
+  }) as unknown as DragOverEvent & DragEndEvent;
 
 const getFirstColumn = () => screen.getAllByTestId(/column-/i)[0];
 const mockFetch = vi.fn();
@@ -145,6 +174,116 @@ describe("KanbanBoard", () => {
     );
     await waitFor(() =>
       expect(screen.getByText("Echo: What should I do next?")).toBeInTheDocument()
+    );
+  });
+
+  it("moves a card between columns via drag and drop", async () => {
+    await renderBoard();
+
+    const discoveryColumn = screen.getByTestId("column-col-discovery");
+    const progressColumn = screen.getByTestId("column-col-progress");
+
+    expect(within(progressColumn).getByTestId("card-card-4")).toBeInTheDocument();
+    expect(within(discoveryColumn).queryByTestId("card-card-4")).not.toBeInTheDocument();
+
+    act(() => {
+      dndHandlers.onDragOver?.(makeDragEvent("card-4", "col-discovery"));
+    });
+
+    act(() => {
+      dndHandlers.onDragEnd?.(makeDragEvent("card-4", "col-discovery"));
+    });
+
+    await waitFor(() => {
+      expect(within(discoveryColumn).getByTestId("card-card-4")).toBeInTheDocument();
+      expect(within(progressColumn).queryByTestId("card-card-4")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows error when board save fails", async () => {
+    await renderBoard();
+
+    mockFetch.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+      if (url === "/api/board" && method === "GET") {
+        return mockFetchResponse(mockBoard);
+      }
+      if (url === "/api/board" && method === "PUT") {
+        return { ok: false, status: 500, json: async () => ({ detail: "Internal Server Error" }) };
+      }
+      return { ok: false, status: 404, json: async () => ({ detail: "Not Found" }) };
+    });
+
+    const column = screen.getAllByTestId(/column-/i)[0];
+    const input = within(column).getByLabelText("Column title");
+    await userEvent.clear(input);
+    await userEvent.type(input, "Trigger save error");
+
+    await waitFor(() =>
+      expect(screen.getByText("Could not save board changes.")).toBeInTheDocument()
+    );
+  });
+
+  it("shows retry button when board save fails", async () => {
+    await renderBoard();
+
+    mockFetch.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+      if (url === "/api/board" && method === "GET") return mockFetchResponse(mockBoard);
+      if (url === "/api/board" && method === "PUT") {
+        return { ok: false, status: 500, json: async () => ({ detail: "Error" }) };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    });
+
+    const column = screen.getAllByTestId(/column-/i)[0];
+    await userEvent.clear(within(column).getByLabelText("Column title"));
+    await userEvent.type(within(column).getByLabelText("Column title"), "Error trigger");
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument());
+  });
+
+  it("shows error when AI chat request fails", async () => {
+    await renderBoard();
+
+    mockFetch.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+      if (url === "/api/board" && method === "GET") return mockFetchResponse(mockBoard);
+      if (url === "/api/board" && method === "PUT") return mockFetchResponse(mockBoard);
+      if (url === "/api/ai/chat" && method === "POST") {
+        return {
+          ok: false,
+          status: 504,
+          json: async () => ({ detail: { message: "AI provider timed out." } }),
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    });
+
+    await userEvent.type(screen.getByLabelText("Message"), "trigger error");
+    await userEvent.click(screen.getByRole("button", { name: /send to ai/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("AI provider timed out.")).toBeInTheDocument()
+    );
+  });
+
+  it("shows error when board fails to load", async () => {
+    mockFetch.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+      if (url === "/api/board" && method === "GET") {
+        return { ok: false, status: 401, json: async () => ({ detail: "Unauthorized" }) };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    });
+
+    render(<KanbanBoard />);
+    await waitFor(() =>
+      expect(screen.getByText("Unable to load board from server. Please refresh the page.")).toBeInTheDocument()
     );
   });
 

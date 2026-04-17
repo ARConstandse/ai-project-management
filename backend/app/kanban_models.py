@@ -4,14 +4,14 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class CardModel(BaseModel):
-    id: str
-    title: str
-    details: str
+    id: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=200)
+    details: str = Field(max_length=4000)
 
 
 class ColumnModel(BaseModel):
-    id: str
-    title: str
+    id: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=100)
     cardIds: list[str] = Field(default_factory=list)
 
 

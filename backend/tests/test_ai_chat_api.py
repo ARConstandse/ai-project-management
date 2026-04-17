@@ -116,3 +116,53 @@ def test_ai_chat_invalid_schema_does_not_corrupt_board(
 
     board_after = client.get("/api/board").json()
     assert board_after == board_before
+
+
+@pytest.mark.parametrize(
+    "error_kind, expected_status",
+    [
+        ("timeout", 504),
+        ("auth", 502),
+        ("rate_limit", 502),
+        ("network", 502),
+        ("configuration", 500),
+        ("model_unavailable", 502),
+        ("invalid_response", 502),
+    ],
+)
+def test_ai_chat_propagates_ai_client_errors(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    error_kind: str,
+    expected_status: int,
+) -> None:
+    from app.ai_client import AIClientError
+
+    class _ErrorClient:
+        def complete_structured_chat(self, **kwargs: object) -> dict[str, object]:
+            raise AIClientError(error_kind, "test error")
+
+    monkeypatch.setattr(main, "openrouter_client_from_env", lambda: _ErrorClient())
+    login(client)
+    response = client.post("/api/ai/chat", json={"message": "hello", "history": []})
+    assert response.status_code == expected_status
+    assert "error" in response.json()["detail"]
+
+
+def test_ai_chat_rejects_oversized_history(client: TestClient) -> None:
+    login(client)
+    oversized_history = [{"role": "user", "content": "x"} for _ in range(51)]
+    response = client.post(
+        "/api/ai/chat",
+        json={"message": "hello", "history": oversized_history},
+    )
+    assert response.status_code == 422
+
+
+def test_ai_chat_rejects_oversized_message(client: TestClient) -> None:
+    login(client)
+    response = client.post(
+        "/api/ai/chat",
+        json={"message": "x" * 4001, "history": []},
+    )
+    assert response.status_code == 422

@@ -74,7 +74,7 @@ export const initialData: BoardData = {
 const isColumnId = (columns: Column[], id: string) =>
   columns.some((column) => column.id === id);
 
-const findColumnId = (columns: Column[], id: string) => {
+export const findColumnId = (columns: Column[], id: string) => {
   if (isColumnId(columns, id)) {
     return id;
   }

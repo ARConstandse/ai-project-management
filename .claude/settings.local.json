@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest)",
+      "Bash(uv run *)",
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(cat requirements.txt)",
+      "Bash(cat pyproject.toml)",
+      "Bash(.venv/Scripts/python *)",
+      "Bash(curl -s http://localhost:8000/ -o /dev/null -w \"%{http_code}\")",
+      "Bash(winget install *)",
+      "Bash(python -m pytest -q)"
+    ]
+  }
+}

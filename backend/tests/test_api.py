@@ -129,3 +129,48 @@ def test_frontend_asset_route_serves_real_file(
 def test_api_prefix_is_not_handled_by_frontend_catchall(client: TestClient) -> None:
     response = client.get("/api/does-not-exist")
     assert response.status_code == 404
+
+
+def test_expired_session_is_rejected(client: TestClient) -> None:
+    import time as _time
+
+    client.post(
+        "/login",
+        data={"username": "user", "password": "password"},
+        follow_redirects=False,
+    )
+    # Manually expire all sessions.
+    for token in list(main.active_sessions):
+        main.active_sessions[token] = _time.time() - 1
+
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_board_api_rejects_unauthenticated(client: TestClient) -> None:
+    response = client.get("/api/board")
+    assert response.status_code == 401
+
+
+def test_login_with_env_override_credentials(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
+    monkeypatch.setattr(main, "VALID_USERNAME", "envuser")
+    monkeypatch.setattr(main, "VALID_PASSWORD", "envpass")
+
+    bad = client.post(
+        "/login",
+        data={"username": "user", "password": "password"},
+        follow_redirects=False,
+    )
+    assert bad.status_code == 303
+    assert "error=1" in bad.headers["location"]
+
+    good = client.post(
+        "/login",
+        data={"username": "envuser", "password": "envpass"},
+        follow_redirects=False,
+    )
+    assert good.status_code == 303
+    assert good.headers["location"] == "/"

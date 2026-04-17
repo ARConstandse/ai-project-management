@@ -23,7 +23,8 @@ def get_board_for_user(username: str, db_path: Path | None = None) -> Dict[str, 
     try:
         cursor = conn.execute("SELECT id FROM users WHERE username = ?;", (username,))
         row = cursor.fetchone()
-        assert row is not None  # ensure_user_board should guarantee existence
+        if row is None:
+            raise RuntimeError("User bootstrap failed — missing user row after ensure_user_board")
 
         cursor = conn.execute(
             "SELECT board_json FROM boards WHERE user_id = ?;",
@@ -49,7 +50,8 @@ def save_board_for_user(
     try:
         cursor = conn.execute("SELECT id FROM users WHERE username = ?;", (username,))
         row = cursor.fetchone()
-        assert row is not None
+        if row is None:
+            raise RuntimeError("User bootstrap failed — missing user row after ensure_user_board")
         now = _utc_now_iso()
         conn.execute(
             """

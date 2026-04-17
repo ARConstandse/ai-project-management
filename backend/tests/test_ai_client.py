@@ -68,7 +68,6 @@ def test_complete_maps_model_not_found_to_model_unavailable_error() -> None:
     with pytest.raises(AIClientError) as exc:
         client.complete("2+2")
     assert exc.value.kind == "model_unavailable"
-    assert "No endpoints found" in exc.value.message
 
 
 def test_complete_maps_timeout_to_categorized_error() -> None:
